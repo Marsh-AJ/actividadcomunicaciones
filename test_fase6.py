@@ -274,7 +274,7 @@ def ejecutar_bloque_unitario() -> list[dict]:
 # BLOQUE 2: GENERACIÓN DE GRÁFICOS EXPERIMENTALES
 # =====================================================================
 
-def generar_grafico_1_ber_awgn(res_exp1: dict[str, list[dict[str, Any]]]):
+def generar_grafico_1_ber_awgn(res_exp1: dict[str, list[dict]]):
     """Gráfico 1: BER vs Eb/N0 con curvas teóricas rotuladas formalmente."""
     plt.figure(figsize=(10, 7), dpi=300)
     colores = {"BFSK": "#D95F02", "BPSK": "#1B9E77", "QPSK": "#7570B3", "16-QAM": "#E7298A"}
@@ -356,7 +356,7 @@ def generar_grafico_1_ber_awgn(res_exp1: dict[str, list[dict[str, Any]]]):
     print(f"  [GUARDADO] {ruta}")
 
 
-def generar_grafico_2_evm_vs_ebn0(res_exp1: dict[str, list[dict[str, Any]]]):
+def generar_grafico_2_evm_vs_ebn0(res_exp1: dict[str, list[dict]]):
     """Gráfico 2: Curvas de EVM (%) vs Eb/N0 para modulaciones lineales (BFSK es N/A)."""
     plt.figure(figsize=(9, 6), dpi=300)
     colores = {"BPSK": "#1B9E77", "QPSK": "#7570B3", "16-QAM": "#E7298A"}
@@ -404,7 +404,7 @@ def generar_grafico_2_evm_vs_ebn0(res_exp1: dict[str, list[dict[str, Any]]]):
     print(f"  [GUARDADO] {ruta}")
 
 
-def generar_grafico_3_ruido_termico(res_exp2: dict[str, list[dict[str, Any]]]):
+def generar_grafico_3_ruido_termico(res_exp2: dict[str, list[dict]]):
     """Gráfico 3: BER vs Potencia de Recepción Prx [dBm] con calibración física kTB."""
     plt.figure(figsize=(10, 7), dpi=300)
     colores = {"BFSK": "#D95F02", "BPSK": "#1B9E77", "QPSK": "#7570B3", "16-QAM": "#E7298A"}
@@ -453,7 +453,7 @@ def generar_grafico_3_ruido_termico(res_exp2: dict[str, list[dict[str, Any]]]):
     print(f"  [GUARDADO] {ruta}")
 
 
-def generar_grafico_4_cci(res_exp3: dict[str, list[dict[str, Any]]]):
+def generar_grafico_4_cci(res_exp3: dict[str, list[dict]]):
     """Gráfico 4: Sensibilidad a Interferencia Cocanal (BER y EVM vs SIR)."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6), dpi=300)
     colores = {"BFSK": "#D95F02", "BPSK": "#1B9E77", "QPSK": "#7570B3", "16-QAM": "#E7298A"}
@@ -521,7 +521,7 @@ def generar_grafico_4_cci(res_exp3: dict[str, list[dict[str, Any]]]):
     print(f"  [GUARDADO] {ruta}")
 
 
-def generar_grafico_5_ruido_fase_y_aci(res_exp4: dict[str, Any]):
+def generar_grafico_5_ruido_fase_y_aci(res_exp4: dict):
     """Gráfico 5: Ruido de Fase (4A) e Interferencia Canal Adyacente (4B)."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6), dpi=300)
     colores = {"BFSK": "#D95F02", "BPSK": "#1B9E77", "QPSK": "#7570B3", "16-QAM": "#E7298A"}
@@ -589,7 +589,7 @@ def generar_grafico_5_ruido_fase_y_aci(res_exp4: dict[str, Any]):
     print(f"  [GUARDADO] {ruta}")
 
 
-def generar_grafico_6_tradeoff(matriz: list[dict[str, Any]]):
+def generar_grafico_6_tradeoff(matriz: list[dict]):
     """Gráfico 6: Comparación multidimensional de trade-off (barras agrupadas normalizadas)."""
     plt.figure(figsize=(11, 6), dpi=300)
 
@@ -639,11 +639,11 @@ def generar_grafico_6_tradeoff(matriz: list[dict[str, Any]]):
 # =====================================================================
 
 def exportar_tablas_fase6(
-    res_exp1: dict[str, list[dict[str, Any]]],
-    res_exp2: dict[str, list[dict[str, Any]]],
-    res_exp3: dict[str, list[dict[str, Any]]],
-    res_exp4: dict[str, Any],
-    matriz_tradeoff: list[dict[str, Any]]
+    res_exp1: dict[str, list[dict]],
+    res_exp2: dict[str, list[dict]],
+    res_exp3: dict[str, list[dict]],
+    res_exp4: dict,
+    matriz_tradeoff: list[dict]
 ):
     """Genera todas las tablas de resultados en formato CSV y Markdown."""
     print("\n" + "=" * 76)
