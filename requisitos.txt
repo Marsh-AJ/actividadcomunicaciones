@@ -1,0 +1,7 @@
+# Dependencias del Simulador de Modulaciones Digitales
+# Compatibles con Python 3.13.5 en Windows 11
+numpy>=2.1.0
+scipy>=1.14.0
+matplotlib>=3.9.0
+pandas>=2.2.0
+

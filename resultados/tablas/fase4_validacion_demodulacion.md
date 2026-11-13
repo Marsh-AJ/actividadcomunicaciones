@@ -1,0 +1,6 @@
+| Modulacion | Bits_por_Simbolo_k | Es_Teorica_BB | Es_Medida_BB | Eb_Medida_BB | Potencia_RF_Medida_W | Bits_Evaluados | Bits_Erroneos | BER_Observada | Estado |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| BFSK | 1 | 1.0 | 1.0 | 1.0 | 0.5 | 1000 | 0 | 0.0 | VALIDADO (Cero Errores) |
+| BPSK | 1 | 1.0 | 1.0 | 1.0 | 0.5 | 1000 | 0 | 0.0 | VALIDADO (Cero Errores) |
+| QPSK | 2 | 1.0 | 1.0 | 0.5 | 0.5 | 1000 | 0 | 0.0 | VALIDADO (Cero Errores) |
+| 16-QAM | 4 | 1.0 | 1.012 | 0.253 | 0.506 | 2000 | 0 | 0.0 | VALIDADO (Cero Errores) |

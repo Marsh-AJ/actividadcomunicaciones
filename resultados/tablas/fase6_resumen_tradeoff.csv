@@ -1,0 +1,5 @@
+modulacion,bits_por_simbolo,eficiencia_principal_bps_hz,convencion_ancho_banda,ancho_banda_hz,ebn0_req_ber_1e3_db,sensibilidad_prx_dbm,tolerancia_cci_sir_db,complejidad_ops_simbolo,complejidad_ops_bit,dominio_receptor,evaluacion_robustez
+BFSK,1,0.25,Regla de Carson,4000.0,11.0,-129.0,2.0,129,129.0,RF Pasobanda,Excelente robustez no coherente (inmune a ruido de fase)
+BPSK,1,0.5,Lóbulo principal RF (nulo a nulo),2000.0,7.0,-133.0,0.0,1,1.0,Símbolo Banda Base,Excelente inmunidad al ruido y coherencia de fase
+QPSK,2,1.0,Lóbulo principal RF (nulo a nulo),2000.0,7.0,-129.0,6.0,2,1.0,Símbolo Banda Base,Excelente inmunidad al ruido y coherencia de fase
+16-QAM,4,2.0,Lóbulo principal RF (nulo a nulo),2000.0,11.0,-123.0,16.0,8,2.0,Símbolo Banda Base,Sensible a ruido y no linealidad; alta tasa de datos

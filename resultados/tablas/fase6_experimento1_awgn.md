@@ -1,0 +1,56 @@
+# FASE 6 — EXPERIMENTO 1: RESULTADOS AWGN VS MODELOS TEÓRICOS
+
+| Modulación | Eb/N0 [dB] | Es/N0 [dB] | BER Simulada | Errores | Wilson Sup 95% | Cota 3/Nb | BER Teórica | Etiqueta Teórica | EVM RMS |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :---: |
+| BFSK | 0.0 | 0.00 | 3.022000e-01 | 18132 | 3.058870e-01 | N/A | 3.032653e-01 | BFSK Teórica No Coherente (Ortogonal) | N/A |
+| BFSK | 1.0 | 1.00 | 2.701500e-01 | 16209 | 2.737176e-01 | N/A | 2.664390e-01 | BFSK Teórica No Coherente (Ortogonal) | N/A |
+| BFSK | 2.0 | 2.00 | 2.259000e-01 | 13554 | 2.292635e-01 | N/A | 2.263679e-01 | BFSK Teórica No Coherente (Ortogonal) | N/A |
+| BFSK | 3.0 | 3.00 | 1.846833e-01 | 11081 | 1.878084e-01 | N/A | 1.843760e-01 | BFSK Teórica No Coherente (Ortogonal) | N/A |
+| BFSK | 4.0 | 4.00 | 1.412333e-01 | 8474 | 1.440429e-01 | N/A | 1.424035e-01 | BFSK Teórica No Coherente (Ortogonal) | N/A |
+| BFSK | 5.0 | 5.00 | 1.035000e-01 | 6210 | 1.059628e-01 | N/A | 1.028703e-01 | BFSK Teórica No Coherente (Ortogonal) | N/A |
+| BFSK | 6.0 | 6.00 | 6.700000e-02 | 4020 | 6.902840e-02 | N/A | 6.831110e-02 | BFSK Teórica No Coherente (Ortogonal) | N/A |
+| BFSK | 7.0 | 7.00 | 4.163333e-02 | 2498 | 4.326120e-02 | N/A | 4.079959e-02 | BFSK Teórica No Coherente (Ortogonal) | N/A |
+| BFSK | 8.0 | 8.00 | 2.095000e-02 | 1257 | 2.212700e-02 | N/A | 2.132375e-02 | BFSK Teórica No Coherente (Ortogonal) | N/A |
+| BFSK | 9.0 | 9.00 | 9.633333e-03 | 578 | 1.044689e-02 | N/A | 9.421242e-03 | BFSK Teórica No Coherente (Ortogonal) | N/A |
+| BFSK | 10.0 | 10.00 | 3.416667e-03 | 205 | 3.916431e-03 | N/A | 3.368973e-03 | BFSK Teórica No Coherente (Ortogonal) | N/A |
+| BFSK | 11.0 | 11.00 | 1.000000e-03 | 60 | 1.286851e-03 | N/A | 9.230988e-04 | BFSK Teórica No Coherente (Ortogonal) | N/A |
+| BFSK | 12.0 | 12.00 | 1.500000e-04 | 9 | 2.850812e-04 | N/A | 1.808915e-04 | BFSK Teórica No Coherente (Ortogonal) | N/A |
+| BPSK | 0.0 | 0.00 | 7.780000e-02 | 4668 | 7.997039e-02 | N/A | 7.864960e-02 | BPSK/QPSK Teórica (Exacta) | 99.90% |
+| BPSK | 1.0 | 1.00 | 5.491667e-02 | 3295 | 5.676821e-02 | N/A | 5.628195e-02 | BPSK/QPSK Teórica (Exacta) | 89.18% |
+| BPSK | 2.0 | 2.00 | 3.903333e-02 | 2342 | 4.061276e-02 | N/A | 3.750613e-02 | BPSK/QPSK Teórica (Exacta) | 79.53% |
+| BPSK | 3.0 | 3.00 | 2.223333e-02 | 1334 | 2.344404e-02 | N/A | 2.287841e-02 | BPSK/QPSK Teórica (Exacta) | 70.80% |
+| BPSK | 4.0 | 4.00 | 1.161667e-02 | 697 | 1.250586e-02 | N/A | 1.250082e-02 | BPSK/QPSK Teórica (Exacta) | 62.87% |
+| BPSK | 5.0 | 5.00 | 5.600000e-03 | 336 | 6.229571e-03 | N/A | 5.953867e-03 | BPSK/QPSK Teórica (Exacta) | 56.31% |
+| BPSK | 6.0 | 6.00 | 2.050000e-03 | 123 | 2.445181e-03 | N/A | 2.388291e-03 | BPSK/QPSK Teórica (Exacta) | 50.06% |
+| BPSK | 7.0 | 7.00 | 9.333333e-04 | 56 | 1.211692e-03 | N/A | 7.726748e-04 | BPSK/QPSK Teórica (Exacta) | 44.69% |
+| BPSK | 8.0 | 8.00 | 2.833333e-04 | 17 | 4.537356e-04 | N/A | 1.909078e-04 | BPSK/QPSK Teórica (Exacta) | 39.80% |
+| BPSK | 9.0 | 9.00 | 0.000000e+00 | 0 | 6.402021e-05 | 5.000000e-05 | 3.362723e-05 | BPSK/QPSK Teórica (Exacta) | 35.47% |
+| BPSK | 10.0 | 10.00 | 0.000000e+00 | 0 | 6.402021e-05 | 5.000000e-05 | 3.872108e-06 | BPSK/QPSK Teórica (Exacta) | 31.52% |
+| BPSK | 11.0 | 11.00 | 0.000000e+00 | 0 | 6.402021e-05 | 5.000000e-05 | 2.613068e-07 | BPSK/QPSK Teórica (Exacta) | 28.26% |
+| BPSK | 12.0 | 12.00 | 0.000000e+00 | 0 | 6.402021e-05 | 5.000000e-05 | 9.006010e-09 | BPSK/QPSK Teórica (Exacta) | 25.04% |
+| QPSK | 0.0 | 3.01 | 7.803333e-02 | 4682 | 8.020665e-02 | N/A | 7.864960e-02 | BPSK/QPSK Teórica (Exacta) | 70.74% |
+| QPSK | 1.0 | 4.01 | 5.645000e-02 | 3387 | 5.832522e-02 | N/A | 5.628195e-02 | BPSK/QPSK Teórica (Exacta) | 63.14% |
+| QPSK | 2.0 | 5.01 | 3.666667e-02 | 2200 | 3.820040e-02 | N/A | 3.750613e-02 | BPSK/QPSK Teórica (Exacta) | 56.30% |
+| QPSK | 3.0 | 6.01 | 2.410000e-02 | 1446 | 2.535792e-02 | N/A | 2.287841e-02 | BPSK/QPSK Teórica (Exacta) | 50.31% |
+| QPSK | 4.0 | 7.01 | 1.308333e-02 | 785 | 1.402424e-02 | N/A | 1.250082e-02 | BPSK/QPSK Teórica (Exacta) | 44.87% |
+| QPSK | 5.0 | 8.01 | 6.050000e-03 | 363 | 6.702895e-03 | N/A | 5.953867e-03 | BPSK/QPSK Teórica (Exacta) | 39.99% |
+| QPSK | 6.0 | 9.01 | 2.983333e-03 | 179 | 3.452687e-03 | N/A | 2.388291e-03 | BPSK/QPSK Teórica (Exacta) | 35.57% |
+| QPSK | 7.0 | 10.01 | 9.000000e-04 | 54 | 1.174001e-03 | N/A | 7.726748e-04 | BPSK/QPSK Teórica (Exacta) | 31.68% |
+| QPSK | 8.0 | 11.01 | 1.500000e-04 | 9 | 2.850812e-04 | N/A | 1.909078e-04 | BPSK/QPSK Teórica (Exacta) | 28.10% |
+| QPSK | 9.0 | 12.01 | 6.666667e-05 | 4 | 1.714194e-04 | N/A | 3.362723e-05 | BPSK/QPSK Teórica (Exacta) | 25.00% |
+| QPSK | 10.0 | 13.01 | 1.666667e-05 | 1 | 9.440933e-05 | N/A | 3.872108e-06 | BPSK/QPSK Teórica (Exacta) | 22.37% |
+| QPSK | 11.0 | 14.01 | 0.000000e+00 | 0 | 6.402021e-05 | 5.000000e-05 | 2.613068e-07 | BPSK/QPSK Teórica (Exacta) | 19.90% |
+| QPSK | 12.0 | 15.01 | 0.000000e+00 | 0 | 6.402021e-05 | 5.000000e-05 | 9.006010e-09 | BPSK/QPSK Teórica (Exacta) | 17.82% |
+| 16-QAM | 0.0 | 6.02 | 1.402167e-01 | 8413 | 1.430179e-01 | N/A | 1.391600e-01 | BER_teorica_aproximada | 49.94% |
+| 16-QAM | 1.0 | 7.02 | 1.194500e-01 | 7167 | 1.220694e-01 | N/A | 1.183458e-01 | BER_teorica_aproximada | 44.65% |
+| 16-QAM | 2.0 | 8.02 | 9.671667e-02 | 5803 | 9.910757e-02 | N/A | 9.755935e-02 | BER_teorica_aproximada | 39.61% |
+| 16-QAM | 3.0 | 9.02 | 7.838333e-02 | 4703 | 8.056103e-02 | N/A | 7.741543e-02 | BER_teorica_aproximada | 35.63% |
+| 16-QAM | 4.0 | 10.02 | 5.866667e-02 | 3520 | 6.057543e-02 | N/A | 5.861846e-02 | BER_teorica_aproximada | 31.57% |
+| 16-QAM | 5.0 | 11.02 | 4.023333e-02 | 2414 | 4.183534e-02 | N/A | 4.189230e-02 | BER_teorica_aproximada | 27.99% |
+| 16-QAM | 6.0 | 12.02 | 2.695000e-02 | 1617 | 2.827634e-02 | N/A | 2.787131e-02 | BER_teorica_aproximada | 25.00% |
+| 16-QAM | 7.0 | 13.02 | 1.676667e-02 | 1006 | 1.782540e-02 | N/A | 1.696673e-02 | BER_teorica_aproximada | 22.55% |
+| 16-QAM | 8.0 | 14.02 | 9.116667e-03 | 547 | 9.909222e-03 | N/A | 9.247214e-03 | BER_teorica_aproximada | 20.01% |
+| 16-QAM | 9.0 | 15.02 | 4.183333e-03 | 251 | 4.732478e-03 | N/A | 4.390336e-03 | BER_teorica_aproximada | 17.75% |
+| 16-QAM | 10.0 | 16.02 | 1.700000e-03 | 102 | 2.063061e-03 | N/A | 1.754151e-03 | BER_teorica_aproximada | 15.86% |
+| 16-QAM | 11.0 | 17.02 | 7.333333e-04 | 44 | 9.842380e-04 | N/A | 5.647061e-04 | BER_teorica_aproximada | 14.30% |
+| 16-QAM | 12.0 | 18.02 | 1.000000e-04 | 6 | 2.181757e-04 | N/A | 1.386587e-04 | BER_teorica_aproximada | 12.60% |

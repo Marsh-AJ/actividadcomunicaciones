@@ -1,0 +1,12 @@
+Prueba,Estado
+01_AWGN_Varianzas,PASS
+02_ACI_Nyquist,PASS
+03_Ruido_Impulsivo,PASS
+04_CDMA_Walsh8,PASS
+05_Ruido_Fase,PASS
+06_Tonal_CW,PASS
+07_Ruido_Termico_kTB,PASS
+08_Interferencia_CCI,PASS
+09_Ruido_Laplace,PASS
+10_Doppler_Desplazamiento,PASS
+11_Despacho_BFSK,PASS
