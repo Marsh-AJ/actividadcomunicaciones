@@ -2,6 +2,6 @@
 
 | Técnica | Escenario de Canal | Configuración Técnica | Desempeño Sin Mitigación | Desempeño Con Mitigación | Beneficio Demostrado |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| 1. Filtrado Digital FIR | Interferencia Canal Adyacente (ACI Δf=1500 Hz) | FIR Orden 48, Hamming, fc=1 kHz | Degradación en ACI (BER hasta 0.06) | Atenuación ACI de 40.6 dB; BER reducida a 0.0 | Supresión de interferencia fuera de banda |
-| 2. Ecualización Zero-Forcing (ZF) | Canal Dispersivo con ISI (h=[1.0, 0.35]) | FIR Nw=7, Retardo Δ=0, NEF=+0.57 dB | Piso de error severo (BER > 10% en 16-QAM) | Cancelación de ISI (BER < 1e-4 a 14 dB) | Eliminación del piso de error por dispersión multitrayecto |
-| 3. Diversidad de Recepción (MRC L=2) | Canal Móvil con Desvanecimiento Rayleigh Plano | SIMO 1x2, Ramas independientes, MRC coherente | Decaimiento lento orden 1 (BER ≈ 2.2% a 10 dB) | Decaimiento rápido orden 2 (BER ≈ 0.15% a 10 dB) | Ganancia de diversidad > 10 dB a BER = 10^-3 |
+| 1. Filtrado Digital FIR | Interferencia Canal Adyacente (ACI Δf=1500 Hz) | LPF Ord.48 (fc=1 kHz) y BPF BFSK Ord.72 (1.8-4.2 kHz) | A SIR=0 dB: BFSK BER=0.0677, 16-QAM BER=2.2833e-03 (EVM=23.1%) | Aten. 40.6 dB (LPF) / 33.7 dB (BPF); BFSK BER=0.00e+00, 16-QAM BER=0.00e+00 (EVM=9.7%) | Supresión real de interferencia ACI sin destruir componentes útiles |
+| 2. Ecualización Zero-Forcing (ZF) | Canal Dispersivo con ISI (h=[1.0, 0.35]) | FIR Nw=7, Retardo Δ=0, NEF=+0.57 dB | Piso de error severo (16-QAM BER=0.1125 a 14 dB) | Cancelación de ISI (16-QAM BER=0.00e+00 a 14 dB) | Eliminación del piso de error por dispersión multitrayecto |
+| 3. Diversidad de Recepción (MRC L=2) | Canal Móvil con Desvanecimiento Rayleigh Plano | SIMO 1x2, Ramas independientes, MRC coherente | Decaimiento orden 1 (BPSK SISO BER=0.0237 a 10 dB) | Decaimiento orden 2 (BPSK MRC BER=1.6333e-03 a 10 dB) | Reducción drástica de errores por desvanecimiento Rayleigh |

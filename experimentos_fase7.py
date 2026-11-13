@@ -22,6 +22,7 @@ import numpy as np
 import fundamentos
 import modulaciones
 import demodulacion
+import ruido
 import interferencias
 import canales
 import metricas
@@ -40,14 +41,16 @@ def ejecutar_experimento_1_filtrado(
     seed_base: int = 5000
 ) -> dict[str, Any]:
     """
-    Evalúa el desempeño antes y después del filtro digital FIR paso bajo frente
-    a interferencia ACI a delta_f = 1500 Hz con fondo AWGN (Eb/N0 = 15 dB):
-    - Filtro: FIR orden 48 (49 taps), ventana Hamming, fc = 1000 Hz, fs = 16000 Hz.
-    - Modulaciones: BPSK, QPSK y 16-QAM.
+    Evalúa el desempeño antes y después del filtrado digital FIR frente a interferencia
+    de canal adyacente (ACI) a delta_f = 1500 Hz con fondo AWGN (Eb/N0 = 15 dB):
+    - BPSK, QPSK, 16-QAM: Filtro FIR paso bajo Hamming orden 48, fc = 1000 Hz, fs = 16000 Hz,
+      aplicado sobre la mezcla coherente I/Q antes del muestreo/promediado de símbolo (ventana central [2:14]).
+    - BFSK: Filtro FIR paso banda Hamming orden 72, banda [1800, 4200] Hz centrado en fc = 3000 Hz,
+      aplicado en RF antes del banco de correlación en cuadratura.
     - Barrido: SIR de 0 a 16 dB (paso 2 dB).
 
     Retorna:
-        dict con resultados detallados 'sin_filtro', 'con_filtro' y metadatos del filtro.
+        dict con resultados detallados 'sin_filtro', 'con_filtro' y metadatos de los filtros.
     """
     if sir_valores_db is None:
         sir_valores_db = np.arange(0.0, 17.0, 2.0)
@@ -55,58 +58,108 @@ def ejecutar_experimento_1_filtrado(
     fs = 16000.0
     sps = 16
     fc = 2000.0
+    f0_bfsk = 2000.0
+    f1_bfsk = 4000.0
+    fc_bfsk = 3000.0
+
+    # Parámetros del filtro paso bajo (banda base) y paso banda (BFSK RF)
     f_corte = 1000.0  # Ancho de banda de símbolo Rs = 1000 baud
     orden_filtro = 48
+    f_baja_bfsk = 1800.0
+    f_alta_bfsk = 4200.0
+    orden_bfsk = 72
 
-    # 1. Diseñar filtro y medir atenuación analítica
+    # 1. Diseñar filtros y medir atenuaciones reales sobre la interferencia ACI
     h_fir = mitigacion.disenar_filtro_fir_pasabajos(fs=fs, f_corte=f_corte, orden=orden_filtro)
-    info_filtro = mitigacion.medir_atenuacion_filtro(h_fir, fs=fs, f_interferencia=delta_f)
+    info_filtro = mitigacion.medir_atenuacion_filtro(h_fir, fs=fs, f_interferencia=delta_f, f_referencia=0.0)
+
+    h_fir_bfsk = mitigacion.disenar_filtro_fir_pasabanda(
+        fs=fs, f_baja=f_baja_bfsk, f_alta=f_alta_bfsk, orden=orden_bfsk
+    )
+    info_filtro_bfsk = mitigacion.medir_atenuacion_filtro(
+        h_fir_bfsk, fs=fs, f_interferencia=fc_bfsk + delta_f, f_referencia=fc_bfsk
+    )
 
     n_bits_ajustado = int(math.ceil(n_bits / 4.0) * 4)
-    modulaciones_lista = ["BPSK", "QPSK", "16-QAM"]
+    modulaciones_lista = ["BFSK", "BPSK", "QPSK", "16-QAM"]
 
     resultados: dict[str, dict[str, list[dict[str, Any]]]] = {
         "sin_filtro": {m: [] for m in modulaciones_lista},
         "con_filtro": {m: [] for m in modulaciones_lista}
     }
 
+    isi_limpia_16qam_pct = 0.0
+
     for m_idx, mod_nombre in enumerate(modulaciones_lista):
         bits_tx = fundamentos.generar_bits(n_bits_ajustado, semilla=seed_base + m_idx * 111)
 
         # Modulación original limpia
-        if mod_nombre == "BPSK":
+        if mod_nombre == "BFSK":
+            mod_res = modulaciones.modular_bfsk(
+                bits_tx, f0=f0_bfsk, f1=f1_bfsk, sps=sps, fs=fs, fase_continua=True
+            )
+        elif mod_nombre == "BPSK":
             mod_res = modulaciones.modular_bpsk(bits_tx, fc=fc, sps=sps, fs=fs, normalizar=True)
         elif mod_nombre == "QPSK":
             mod_res = modulaciones.modular_qpsk(bits_tx, fc=fc, sps=sps, fs=fs, normalizar=True)
         elif mod_nombre in ("16-QAM", "16QAM"):
             mod_res = modulaciones.modular_16qam(bits_tx, fc=fc, sps=sps, fs=fs, normalizar=True)
+            # Verificar preservación de componentes útiles en banda base (ISI residual < 2%)
+            bb_limpia_f = mitigacion.aplicar_filtro_fir(mod_res.senal_bb, h_fir, compensar_retardo=True)
+            n_sym_c = len(bb_limpia_f) // sps
+            sym_limpios_f = np.mean(bb_limpia_f[: n_sym_c * sps].reshape(n_sym_c, sps)[:, 2 : sps - 2], axis=1)
+            isi_evm, _ = metricas.calcular_evm_simbolos(mod_res.simbolos, sym_limpios_f, "16-QAM")
+            isi_limpia_16qam_pct = float(isi_evm or 0.0)
         else:
             continue
 
         k_bits = mod_res.bits_por_simbolo
         es_n0_fondo = metricas.ebn0_a_esn0(ebn0_fondo_db, k_bits)
+        t = mod_res.t
+        fc_mod = float(mod_res.fc)
 
         for s_idx, sir_db in enumerate(sir_valores_db):
             semilla_punto = seed_base + m_idx * 1000 + s_idx * 13
 
-            # A. Aplicar ACI en RF pasobanda + fondo AWGN
-            res_aci = canales.aplicar_canal(
-                mod_res,
-                "aci",
+            # A. Aplicar ACI en RF pasobanda + AWGN en RF (exactamente la misma señal entra a ambos receptores)
+            s_rf_aci = interferencias.aplicar_aci(
+                mod_res.senal_rf,
+                fs=fs,
+                fc=fc_mod,
                 delta_f=delta_f,
                 sir_db=float(sir_db),
-                fase_inicial=0.0,
-                seed=semilla_punto
+                pot_senal=0.5,
+                fase_inicial=0.0
             )
-            # Agregar ruido térmico de fondo
-            res_pert = canales.aplicar_canal(res_aci, "awgn", snr_db=es_n0_fondo, seed=semilla_punto + 777)
+            s_rf_pert = ruido.aplicar_awgn_rf_equivalente_esn0(
+                s_rf_aci,
+                es_n0_db=es_n0_fondo,
+                sps=sps,
+                seed=semilla_punto + 777
+            )
 
-            # CASO 1: SIN FILTRO ADICIONAL (Antes)
-            bits_rx_sin = canales.demodular_resultado_perturbado(res_pert)
+            # CASO 1: SIN FILTRO FIR (Antes)
+            if mod_nombre == "BFSK":
+                bits_rx_sin = demodulacion.demodular_bfsk(
+                    s_rf_pert, f0=f0_bfsk, f1=f1_bfsk, sps=sps, fs=fs
+                )
+                evm_pct_sin, evm_db_sin = None, None
+            else:
+                s_sym_sin, _ = canales.demodular_envolvente_coherente(
+                    s_rf_pert, fc=fc_mod, fs=fs, sps=sps
+                )
+                if mod_nombre == "BPSK":
+                    bits_rx_sin = demodulacion.demodular_bpsk(s_sym_sin)
+                elif mod_nombre == "QPSK":
+                    bits_rx_sin = demodulacion.demodular_qpsk(s_sym_sin)
+                else:
+                    bits_rx_sin = demodulacion.demodular_16qam(s_sym_sin)
+
+                evm_pct_sin, evm_db_sin = metricas.calcular_evm_simbolos(
+                    mod_res.simbolos, s_sym_sin, mod_nombre
+                )
+
             mber_sin = metricas.calcular_ber_con_intervalo(bits_tx, bits_rx_sin)
-            evm_pct_sin, evm_db_sin = metricas.calcular_evm_simbolos(
-                mod_res.simbolos, res_pert.simbolos_pert, mod_nombre
-            )
 
             resultados["sin_filtro"][mod_nombre].append({
                 "sir_db": float(sir_db),
@@ -119,28 +172,44 @@ def ejecutar_experimento_1_filtrado(
             })
 
             # CASO 2: CON FILTRO DIGITAL FIR (Después)
-            # Filtrar la envolvente en banda base sobremuestreada
-            s_bb_filtrada = mitigacion.aplicar_filtro_fir(
-                res_pert.senal_bb_pert,
-                h_fir,
-                compensar_retardo=True
-            )
-            # Integrar y muestrear sobre el intervalo de símbolo
-            n_sym = len(s_bb_filtrada) // sps
-            s_sym_filtrados = np.mean(s_bb_filtrada[: n_sym * sps].reshape(n_sym, sps), axis=1)
+            if mod_nombre == "BFSK":
+                # Filtro FIR paso banda en RF centrado en la portadora antes del banco de correlación
+                s_rf_filtrada = mitigacion.aplicar_filtro_fir(
+                    s_rf_pert, h_fir_bfsk, compensar_retardo=True
+                )
+                bits_rx_con = demodulacion.demodular_bfsk(
+                    s_rf_filtrada, f0=f0_bfsk, f1=f1_bfsk, sps=sps, fs=fs
+                )
+                evm_pct_con, evm_db_con = None, None
+            else:
+                # Mezcla coherente RF -> banda base SIN promediar aún (conserva el tono ACI a delta_f)
+                s_bb_mezcla = (
+                    2.0 * s_rf_pert * np.cos(2.0 * np.pi * fc_mod * t)
+                    - 1j * 2.0 * s_rf_pert * np.sin(2.0 * np.pi * fc_mod * t)
+                )
+                # Filtrado FIR paso bajo antes del muestreo/integración de símbolo
+                s_bb_filtrada = mitigacion.aplicar_filtro_fir(
+                    s_bb_mezcla, h_fir, compensar_retardo=True
+                )
+                # Promediado en ventana central [2:14] evitando transitorios de borde por el filtro
+                n_sym = len(s_bb_filtrada) // sps
+                s_sym_filtrados = np.mean(
+                    s_bb_filtrada[: n_sym * sps].reshape(n_sym, sps)[:, 2 : sps - 2],
+                    axis=1
+                )
 
-            # Demodular símbolos filtrados
-            if mod_nombre == "BPSK":
-                bits_rx_con = demodulacion.demodular_bpsk(s_sym_filtrados)
-            elif mod_nombre == "QPSK":
-                bits_rx_con = demodulacion.demodular_qpsk(s_sym_filtrados)
-            elif mod_nombre in ("16-QAM", "16QAM"):
-                bits_rx_con = demodulacion.demodular_16qam(s_sym_filtrados)
+                if mod_nombre == "BPSK":
+                    bits_rx_con = demodulacion.demodular_bpsk(s_sym_filtrados)
+                elif mod_nombre == "QPSK":
+                    bits_rx_con = demodulacion.demodular_qpsk(s_sym_filtrados)
+                else:
+                    bits_rx_con = demodulacion.demodular_16qam(s_sym_filtrados)
+
+                evm_pct_con, evm_db_con = metricas.calcular_evm_simbolos(
+                    mod_res.simbolos, s_sym_filtrados, mod_nombre
+                )
 
             mber_con = metricas.calcular_ber_con_intervalo(bits_tx, bits_rx_con)
-            evm_pct_con, evm_db_con = metricas.calcular_evm_simbolos(
-                mod_res.simbolos, s_sym_filtrados, mod_nombre
-            )
 
             resultados["con_filtro"][mod_nombre].append({
                 "sir_db": float(sir_db),
@@ -155,10 +224,14 @@ def ejecutar_experimento_1_filtrado(
     return {
         "resultados": resultados,
         "info_filtro": info_filtro,
+        "info_filtro_bfsk": info_filtro_bfsk,
         "f_corte_hz": f_corte,
         "orden_filtro": orden_filtro,
+        "banda_bfsk_hz": (f_baja_bfsk, f_alta_bfsk),
+        "orden_bfsk": orden_bfsk,
         "fs_hz": fs,
-        "delta_f_hz": delta_f
+        "delta_f_hz": delta_f,
+        "isi_residual_limpia_16qam_pct": isi_limpia_16qam_pct,
     }
 
 

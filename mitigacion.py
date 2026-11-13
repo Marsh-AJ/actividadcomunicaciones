@@ -68,31 +68,72 @@ def disenar_filtro_fir_pasabajos(
     return coeficientes
 
 
+def disenar_filtro_fir_pasabanda(
+    fs: float = 16000.0,
+    f_baja: float = 1800.0,
+    f_alta: float = 4200.0,
+    orden: int = 72
+) -> np.ndarray:
+    """
+    Diseña un filtro FIR paso banda de fase lineal con ventana Hamming centrado en
+    la portadora RF (para BFSK con tonos en 2000 Hz y 4000 Hz, centro 3000 Hz).
+    Normaliza la ganancia en la frecuencia central a 1.0 (0 dB).
+    """
+    if fs <= 0 or f_baja <= 0 or f_alta <= f_baja:
+        raise ValueError("Las frecuencias deben cumplir 0 < f_baja < f_alta y fs > 0.")
+    if f_alta >= fs / 2.0:
+        raise ValueError("f_alta debe ser menor a la frecuencia de Nyquist (fs / 2).")
+    if orden <= 0 or orden % 2 != 0:
+        raise ValueError("El orden del filtro paso banda debe ser entero positivo par.")
+
+    numtaps = int(orden) + 1
+    coeficientes = signal.firwin(
+        numtaps=numtaps,
+        cutoff=[float(f_baja), float(f_alta)],
+        fs=float(fs),
+        window="hamming",
+        pass_zero=False
+    )
+    f_centro = 0.5 * (float(f_baja) + float(f_alta))
+    _, h_c = signal.freqz(coeficientes, 1.0, worN=[f_centro], fs=float(fs))
+    coeficientes = coeficientes / max(abs(h_c[0]), 1e-12)
+    return coeficientes
+
+
 def medir_atenuacion_filtro(
     coeficientes: np.ndarray,
     fs: float,
-    f_interferencia: float
+    f_interferencia: float,
+    f_referencia: float = 0.0
 ) -> dict[str, float]:
     """
     Calcula analíticamente la respuesta en frecuencia del filtro y la atenuación
-    proporcionada a la frecuencia de interferencia especificada (ej. f_interf = 1500 Hz):
-        Atenuacion_dB = 20 · log10( |H(0)| / |H(f_interf)| )
+    proporcionada a la frecuencia de interferencia respecto a f_referencia
+    (0 Hz para paso bajo o fc para paso banda):
+        Atenuacion_dB = 20 · log10( |H(f_ref)| / |H(f_interf)| )
 
     Retorna:
         dict con ganancia_dc_db, ganancia_interf_db y atenuacion_relativa_db.
     """
-    w, h = signal.freqz(coeficientes, 1.0, worN=[0.0, float(f_interferencia)], fs=float(fs))
-    mag_dc = abs(h[0])
+    w, h = signal.freqz(
+        coeficientes,
+        1.0,
+        worN=[float(f_referencia), float(f_interferencia)],
+        fs=float(fs)
+    )
+    mag_ref = abs(h[0])
     mag_int = abs(h[1])
 
-    g_dc_db = float(20.0 * np.log10(max(mag_dc, 1e-12)))
+    g_ref_db = float(20.0 * np.log10(max(mag_ref, 1e-12)))
     g_int_db = float(20.0 * np.log10(max(mag_int, 1e-12)))
-    atenuacion_db = float(g_dc_db - g_int_db)
+    atenuacion_db = float(g_ref_db - g_int_db)
 
     return {
-        "ganancia_dc_db": g_dc_db,
+        "ganancia_dc_db": g_ref_db,
+        "ganancia_ref_db": g_ref_db,
         "ganancia_interf_db": g_int_db,
         "atenuacion_relativa_db": atenuacion_db,
+        "f_referencia_hz": float(f_referencia),
         "f_interferencia_hz": float(f_interferencia),
         "fs_hz": float(fs)
     }
@@ -105,13 +146,14 @@ def aplicar_filtro_fir(
 ) -> np.ndarray:
     """
     Filtra una señal unidimensional (real o compleja) mediante el filtro FIR.
-    Si compensar_retardo es True, compensa el retardo de grupo constante tau = orden // 2
-    para mantener el alineamiento temporal estricto con los instantes de decisión.
+    Si compensar_retardo es True, usa relleno simétrico de bordes y compensa el
+    retardo de grupo constante tau = (N_taps - 1) // 2 para preservar fase y
+    evitar corrupción en el inicio y final de la trama.
 
     Parámetros:
         senal: Arreglo 1D con la señal a filtrar.
         coeficientes: Coeficientes del filtro FIR.
-        compensar_retardo: Si es True, recorta el transitorio inicial y alinea la señal.
+        compensar_retardo: Si es True, compensa el retardo de grupo sin truncar bordes.
 
     Retorna:
         np.ndarray: Señal filtrada con la misma longitud que la entrada.
@@ -123,21 +165,15 @@ def aplicar_filtro_fir(
     n_taps = len(coeficientes)
     retardo = (n_taps - 1) // 2
 
-    # Filtrado causal mediante ecuación en diferencias
-    s_filtrada = signal.lfilter(coeficientes, 1.0, s)
-
     if compensar_retardo and retardo > 0:
-        # Desplazar hacia atrás en 'retardo' muestras para alinear fase
-        # Completar el final con el último valor para preservar longitud
-        s_alineada = np.empty_like(s_filtrada)
-        if len(s_filtrada) > retardo:
-            s_alineada[: -retardo] = s_filtrada[retardo:]
-            s_alineada[-retardo:] = s_filtrada[-1]
-        else:
-            s_alineada = s_filtrada
-        return s_alineada
+        # Rellenar ambos extremos con el valor de borde para evitar transitorios artificiales al inicio y al final
+        pad_izq = retardo
+        pad_der = (n_taps - 1) - retardo
+        s_pad = np.pad(s, (pad_izq, pad_der), mode="edge")
+        s_filtrada = signal.lfilter(coeficientes, 1.0, s_pad)
+        return s_filtrada[n_taps - 1 :]
 
-    return s_filtrada
+    return signal.lfilter(coeficientes, 1.0, s)
 
 
 # =====================================================================

@@ -56,7 +56,7 @@ os.makedirs(DIR_TABLAS, exist_ok=True)
 # =====================================================================
 
 def test_01_diseno_filtro_fir_atenuacion() -> dict:
-    """Verifica diseño de filtro FIR, orden, ganancia DC y atenuación a 1500 Hz."""
+    """Verifica diseño de filtros FIR (paso bajo y paso banda), atenuación ACI y preservación útil."""
     fs = 16000.0
     fc = 1000.0
     orden = 48
@@ -72,16 +72,39 @@ def test_01_diseno_filtro_fir_atenuacion() -> dict:
     # Debe atenuar al menos 35 dB a 1500 Hz (frecuencia de la ACI)
     assert at_db > 35.0, f"Atenuación insuficiente a 1500 Hz: {at_db:.2f} dB"
 
+    # Verificar filtro paso banda para BFSK RF (portadora central 3000 Hz, tonos 2000/4000 Hz, ACI en 4500 Hz)
+    h_bp = mitigacion.disenar_filtro_fir_pasabanda(fs=fs, f_baja=1800.0, f_alta=4200.0, orden=72)
+    info_bp = mitigacion.medir_atenuacion_filtro(
+        h_bp, fs=fs, f_interferencia=4500.0, f_referencia=3000.0
+    )
+    assert info_bp["atenuacion_relativa_db"] > 25.0, (
+        f"Atenuación paso banda insuficiente a 4500 Hz: {info_bp['atenuacion_relativa_db']:.2f} dB"
+    )
+    info_tono_f0 = mitigacion.medir_atenuacion_filtro(
+        h_bp, fs=fs, f_interferencia=2000.0, f_referencia=3000.0
+    )
+    assert info_tono_f0["ganancia_interf_db"] > -2.0, "El paso banda atenúa en exceso los tonos útiles BFSK."
+
+    # Verificar que en banda base limpia no se eliminen componentes útiles (ISI residual < 2% en ventana [2:14])
+    bits_chk = fundamentos.generar_bits(2000, semilla=99)
+    mod_chk = modulaciones.modular_16qam(bits_chk, fc=2000.0, sps=16, fs=fs, normalizar=True)
+    bb_f = mitigacion.aplicar_filtro_fir(mod_chk.senal_bb, h_fir, compensar_retardo=True)
+    sym_f = np.mean(bb_f.reshape(-1, 16)[:, 2:14], axis=1)
+    evm_isi, _ = metricas.calcular_evm_simbolos(mod_chk.simbolos, sym_f, "16-QAM")
+    assert evm_isi is not None and evm_isi < 2.0, f"Distorsión útil excesiva tras FIR: EVM={evm_isi:.2f}%"
+
     return {
         "prueba": "01_Diseno_FIR_Atenuacion",
         "orden": orden,
         "atenuacion_1500hz_db": at_db,
+        "atenuacion_bp_4500hz_db": info_bp["atenuacion_relativa_db"],
+        "isi_util_16qam_pct": evm_isi,
         "estado": "PASS"
     }
 
 
 def test_02_compensacion_retardo_fir() -> dict:
-    """Verifica que la compensación de retardo de grupo alinee la señal en fase."""
+    """Verifica que la compensación de retardo de grupo alinee la señal en fase y bordes."""
     fs = 16000.0
     fc = 1000.0
     orden = 48
@@ -93,9 +116,11 @@ def test_02_compensacion_retardo_fir() -> dict:
 
     s_out = mitigacion.aplicar_filtro_fir(s_in, h_fir, compensar_retardo=True)
 
-    # En estado estacionario (después del transitorio de 30 muestras), deben estar en fase
-    corr = np.corrcoef(s_in[50:900], s_out[50:900])[0, 1]
+    assert len(s_out) == len(s_in), "Longitud alterada tras filtrado FIR"
+    # Verificar alineamiento en fase tanto en estado estacionario como hasta el final de la trama
+    corr = np.corrcoef(s_in[50:950], s_out[50:950])[0, 1]
     assert corr > 0.99, f"Desfase residual excesivo tras compensación: corr={corr}"
+    assert np.std(s_out[-24:]) > 0.01, "El borde final quedó congelado artificialmente"
 
     return {"prueba": "02_Compensacion_Retardo_FIR", "correlacion": corr, "estado": "PASS"}
 
@@ -201,6 +226,9 @@ def test_08_integracion_mini_fase7() -> dict:
     r3 = experimentos_fase7.ejecutar_experimento_3_diversidad(ebn0_valores_db=[0.0, 10.0], n_bits=4000)
 
     assert len(r1["resultados"]["sin_filtro"]["QPSK"]) == 2
+    assert len(r1["resultados"]["con_filtro"]["BFSK"]) == 2
+    assert r1["resultados"]["con_filtro"]["BFSK"][0]["ber"] < r1["resultados"]["sin_filtro"]["BFSK"][0]["ber"]
+    assert r1["resultados"]["con_filtro"]["16-QAM"][0]["evm_pct"] < r1["resultados"]["sin_filtro"]["16-QAM"][0]["evm_pct"]
     assert len(r2["resultados"]["con_ecualizador_zf"]["16-QAM"]) == 2
     assert len(r3["resultados"]["MRC"]["BPSK"]) == 2
 
@@ -234,15 +262,21 @@ def ejecutar_bloque_unitario() -> list[dict]:
 # BLOQUE 2: GENERACIÓN DE GRÁFICOS COMPARATIVOS ANTES/DESPUÉS
 # =====================================================================
 
-def generar_grafico_1_filtrado(res_exp1: dict[str, Any]):
+def generar_grafico_1_filtrado(res_exp1: dict):
     """Gráfico 1: Desempeño BER y EVM vs SIR ACI (Sin Filtro vs Con Filtro FIR)."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6), dpi=300)
-    colores = {"BPSK": "#1B9E77", "QPSK": "#7570B3", "16-QAM": "#E7298A"}
+    colores = {
+        "BFSK": "#D95F02",
+        "BPSK": "#1B9E77",
+        "QPSK": "#7570B3",
+        "16-QAM": "#E7298A",
+    }
 
     res = res_exp1["resultados"]
     info_f = res_exp1["info_filtro"]
+    info_bp = res_exp1["info_filtro_bfsk"]
 
-    for mod_nombre in ["BPSK", "QPSK", "16-QAM"]:
+    for mod_nombre in ["BFSK", "BPSK", "QPSK", "16-QAM"]:
         p_sin = res["sin_filtro"][mod_nombre]
         p_con = res["con_filtro"][mod_nombre]
 
@@ -250,34 +284,43 @@ def generar_grafico_1_filtrado(res_exp1: dict[str, Any]):
         ber_sin = [p["cota_tres"] if p["es_cero_errores"] else p["ber"] for p in p_sin]
         ber_con = [p["cota_tres"] if p["es_cero_errores"] else p["ber"] for p in p_con]
 
-        evm_sin = [p["evm_pct"] for p in p_sin]
-        evm_con = [p["evm_pct"] for p in p_con]
-
-        # Subplot 1: BER
+        # Subplot 1: BER (todas las modulaciones)
         ax1.semilogy(sir_vals, ber_sin, label=f"{mod_nombre} Sin Filtro", color=colores[mod_nombre], linestyle="--", marker="x", markersize=6)
         ax1.semilogy(sir_vals, ber_con, label=f"{mod_nombre} Con Filtro FIR", color=colores[mod_nombre], linestyle="-", marker="o", markersize=5, linewidth=1.8)
 
-        # Subplot 2: EVM
-        ax2.plot(sir_vals, evm_sin, label=f"{mod_nombre} Sin Filtro", color=colores[mod_nombre], linestyle="--", marker="x", markersize=6)
-        ax2.plot(sir_vals, evm_con, label=f"{mod_nombre} Con Filtro FIR", color=colores[mod_nombre], linestyle="-", marker="o", markersize=5, linewidth=1.8)
+        # Subplot 2: EVM (solo modulaciones con constelación I/Q)
+        if mod_nombre != "BFSK":
+            evm_sin = [p["evm_pct"] for p in p_sin]
+            evm_con = [p["evm_pct"] for p in p_con]
+            ax2.plot(sir_vals, evm_sin, label=f"{mod_nombre} Sin Filtro", color=colores[mod_nombre], linestyle="--", marker="x", markersize=6)
+            ax2.plot(sir_vals, evm_con, label=f"{mod_nombre} Con Filtro FIR", color=colores[mod_nombre], linestyle="-", marker="o", markersize=5, linewidth=1.8)
 
+    ax1.axhline(5e-5, color="#7F7F7F", linestyle=":", linewidth=1.0, label="Cota 3/Nb (0 errores = 5·10⁻⁵)")
     ax1.set_title("Tasa de Error de Bit (BER) vs SIR ACI", fontsize=11, fontweight="bold")
     ax1.set_xlabel("SIR de Canal Adyacente [dB]", fontsize=10)
     ax1.set_ylabel("BER", fontsize=10)
     ax1.grid(True, which="both", linestyle=":", alpha=0.6)
-    ax1.set_ylim([2e-5, 0.6])
-    ax1.legend(loc="lower left", fontsize=8.5)
+    ax1.set_ylim([2e-5, 0.3])
+    ax1.legend(loc="upper right", fontsize=8, ncol=2)
 
     ax2.set_title("Magnitud del Vector de Error (EVM RMS %) vs SIR ACI", fontsize=11, fontweight="bold")
     ax2.set_xlabel("SIR de Canal Adyacente [dB]", fontsize=10)
     ax2.set_ylabel("EVM RMS [%]", fontsize=10)
     ax2.grid(True, linestyle=":", alpha=0.6)
     ax2.legend(loc="upper right", fontsize=8.5)
+    ax2.annotate(
+        "BFSK: EVM N/A (detección no coherente RF;\nsu mejora BER se muestra en el panel izq.)",
+        xy=(0.04, 0.05),
+        xycoords="axes fraction",
+        fontsize=8.5,
+        bbox=dict(boxstyle="round,pad=0.35", facecolor="#FFF2CC", edgecolor="#D6B656", alpha=0.9)
+    )
 
     fig.suptitle(
-        f"Experimento 1: Mitigación de ACI mediante Filtro Digital FIR de Orden {res_exp1['orden_filtro']}\n"
-        f"(fc={res_exp1['f_corte_hz']:.0f} Hz, fs={res_exp1['fs_hz']:.0f} Hz, Atenuación medida a 1500 Hz: {info_f['atenuacion_relativa_db']:.1f} dB)",
-        fontsize=12,
+        f"Experimento 1: Mitigación de ACI (Δf={res_exp1['delta_f_hz']:.0f} Hz) mediante Filtros FIR\n"
+        f"(BB: LPF Ord.{res_exp1['orden_filtro']}, fc={res_exp1['f_corte_hz']:.0f} Hz, Aten. {info_f['atenuacion_relativa_db']:.1f} dB | "
+        f"BFSK: BPF Ord.{res_exp1['orden_bfsk']}, Aten. {info_bp['atenuacion_relativa_db']:.1f} dB)",
+        fontsize=11.5,
         fontweight="bold"
     )
     plt.tight_layout()
@@ -288,7 +331,7 @@ def generar_grafico_1_filtrado(res_exp1: dict[str, Any]):
     print(f"  [GUARDADO] {ruta}")
 
 
-def generar_grafico_2_ecualizacion(res_exp2: dict[str, Any]):
+def generar_grafico_2_ecualizacion(res_exp2: dict):
     """Gráfico 2: Desempeño BER y respuesta combinada de canal (Sin Ecualizar vs Con ZF)."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6), dpi=300)
     colores = {"BPSK": "#1B9E77", "QPSK": "#7570B3", "16-QAM": "#E7298A"}
@@ -344,7 +387,7 @@ def generar_grafico_2_ecualizacion(res_exp2: dict[str, Any]):
     print(f"  [GUARDADO] {ruta}")
 
 
-def generar_grafico_3_diversidad(res_exp3: dict[str, Any]):
+def generar_grafico_3_diversidad(res_exp3: dict):
     """Gráfico 3: Diversidad de Recepción en Canal Rayleigh (SISO vs SC vs MRC)."""
     plt.figure(figsize=(10, 7), dpi=300)
     colores = {"BPSK": "#1B9E77", "QPSK": "#7570B3"}
@@ -388,9 +431,9 @@ def generar_grafico_3_diversidad(res_exp3: dict[str, Any]):
 # =====================================================================
 
 def exportar_tablas_fase7(
-    res_exp1: dict[str, Any],
-    res_exp2: dict[str, Any],
-    res_exp3: dict[str, Any]
+    res_exp1: dict,
+    res_exp2: dict,
+    res_exp3: dict
 ):
     """Exporta todas las tablas de la Fase 7 en formato CSV y Markdown."""
     print("\n" + "=" * 76)
@@ -403,10 +446,12 @@ def exportar_tablas_fase7(
 
     filas1 = []
     res1 = res_exp1["resultados"]
-    for mod in ["BPSK", "QPSK", "16-QAM"]:
+    for mod in ["BFSK", "BPSK", "QPSK", "16-QAM"]:
         p_sin = res1["sin_filtro"][mod]
         p_con = res1["con_filtro"][mod]
         for i in range(len(p_sin)):
+            evm_s = f"{p_sin[i]['evm_pct']:.2f}%" if p_sin[i]["evm_pct"] is not None else "N/A"
+            evm_c = f"{p_con[i]['evm_pct']:.2f}%" if p_con[i]["evm_pct"] is not None else "N/A"
             filas1.append({
                 "Modulacion": mod,
                 "SIR_ACI_dB": f"{p_sin[i]['sir_db']:.1f}",
@@ -414,8 +459,8 @@ def exportar_tablas_fase7(
                 "BER_Con_Filtro": f"{p_con[i]['ber']:.6e}",
                 "Errores_Sin": p_sin[i]["errores"],
                 "Errores_Con": p_con[i]["errores"],
-                "EVM_Sin_Filtro": f"{p_sin[i]['evm_pct']:.2f}%",
-                "EVM_Con_Filtro": f"{p_con[i]['evm_pct']:.2f}%",
+                "EVM_Sin_Filtro": evm_s,
+                "EVM_Con_Filtro": evm_c,
                 "Mejora_BER": "SÍ" if p_con[i]["ber"] < p_sin[i]["ber"] else ("IGUAL" if p_con[i]["ber"] == p_sin[i]["ber"] else "NO")
             })
 
@@ -425,10 +470,20 @@ def exportar_tablas_fase7(
         writer.writerows(filas1)
 
     info_f = res_exp1["info_filtro"]
+    info_bp = res_exp1["info_filtro_bfsk"]
     with open(ruta_md1, "w", encoding="utf-8") as f:
         f.write("# FASE 7 — EXPERIMENTO 1: FILTRADO DIGITAL FIR FRENTE A CANAL ADYACENTE (ACI)\n\n")
-        f.write(f"Parámetros del Filtro: FIR Orden {res_exp1['orden_filtro']}, fc = {res_exp1['f_corte_hz']:.0f} Hz, fs = {res_exp1['fs_hz']:.0f} Hz.\n")
-        f.write(f"Atenuación analítica medida a Δf = {res_exp1['delta_f_hz']:.0f} Hz: **{info_f['atenuacion_relativa_db']:.2f} dB**.\n\n")
+        f.write(
+            f"Parámetros LPF (BPSK/QPSK/16-QAM): FIR Hamming Orden {res_exp1['orden_filtro']}, "
+            f"fc = {res_exp1['f_corte_hz']:.0f} Hz, fs = {res_exp1['fs_hz']:.0f} Hz. "
+            f"Atenuación analítica a Δf = {res_exp1['delta_f_hz']:.0f} Hz: **{info_f['atenuacion_relativa_db']:.2f} dB**. "
+            f"ISI propia residual (16-QAM limpia): **{res_exp1['isi_residual_limpia_16qam_pct']:.2f}%**.\n\n"
+        )
+        f.write(
+            f"Parámetros BPF (BFSK RF): FIR Hamming Orden {res_exp1['orden_bfsk']}, "
+            f"banda {res_exp1['banda_bfsk_hz'][0]:.0f}–{res_exp1['banda_bfsk_hz'][1]:.0f} Hz (centro 3000 Hz). "
+            f"Atenuación analítica a 4500 Hz: **{info_bp['atenuacion_relativa_db']:.2f} dB**.\n\n"
+        )
         f.write("| Modulación | SIR ACI [dB] | BER Sin Filtro | BER Con Filtro FIR | Errores Sin | Errores Con | EVM Sin | EVM Con | ¿Mejora BER? |\n")
         f.write("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n")
         for r in filas1:
@@ -514,34 +569,54 @@ def exportar_tablas_fase7(
 
     print(f"  [GUARDADO] {ruta_csv3} y {ruta_md3}")
 
-    # 4. Tabla Resumen Global de Mitigación
+    # 4. Tabla Resumen Global de Mitigación (calculada dinámicamente desde resultados reales)
     ruta_csv4 = os.path.join(DIR_TABLAS, "fase7_resumen_mitigacion.csv")
     ruta_md4 = os.path.join(DIR_TABLAS, "fase7_resumen_mitigacion.md")
+
+    ber_bfsk_sin_0 = res1["sin_filtro"]["BFSK"][0]["ber"]
+    ber_bfsk_con_0 = res1["con_filtro"]["BFSK"][0]["ber"]
+    ber_16q_sin_0 = res1["sin_filtro"]["16-QAM"][0]["ber"]
+    ber_16q_con_0 = res1["con_filtro"]["16-QAM"][0]["ber"]
+    evm_16q_sin_0 = res1["sin_filtro"]["16-QAM"][0]["evm_pct"]
+    evm_16q_con_0 = res1["con_filtro"]["16-QAM"][0]["evm_pct"]
+
+    ber_16q_isi_sin_14 = res2["sin_ecualizar"]["16-QAM"][7]["ber"]
+    ber_16q_isi_zf_14 = res2["con_ecualizador_zf"]["16-QAM"][7]["ber"]
+
+    ber_bpsk_siso_10 = res3["SISO"]["BPSK"][5]["ber"]
+    ber_bpsk_mrc_10 = res3["MRC"]["BPSK"][5]["ber"]
 
     filas_resumen = [
         {
             "Tecnica": "1. Filtrado Digital FIR",
             "Escenario_Canal": "Interferencia Canal Adyacente (ACI Δf=1500 Hz)",
-            "Configuracion_Tecnica": f"FIR Orden {res_exp1['orden_filtro']}, Hamming, fc=1 kHz",
-            "Desempeño_Sin_Mitigacion": "Degradación en ACI (BER hasta 0.06)",
-            "Desempeño_Con_Mitigacion": "Atenuación ACI de 40.6 dB; BER reducida a 0.0",
-            "Beneficio_Demostrado": "Supresión de interferencia fuera de banda"
+            "Configuracion_Tecnica": (
+                f"LPF Ord.{res_exp1['orden_filtro']} (fc=1 kHz) y BPF BFSK Ord.{res_exp1['orden_bfsk']} (1.8-4.2 kHz)"
+            ),
+            "Desempeño_Sin_Mitigacion": (
+                f"A SIR=0 dB: BFSK BER={ber_bfsk_sin_0:.4f}, 16-QAM BER={ber_16q_sin_0:.4e} (EVM={evm_16q_sin_0:.1f}%)"
+            ),
+            "Desempeño_Con_Mitigacion": (
+                f"Aten. {info_f['atenuacion_relativa_db']:.1f} dB (LPF) / {info_bp['atenuacion_relativa_db']:.1f} dB (BPF); "
+                f"BFSK BER={ber_bfsk_con_0:.2e}, 16-QAM BER={ber_16q_con_0:.2e} (EVM={evm_16q_con_0:.1f}%)"
+            ),
+            "Beneficio_Demostrado": "Supresión real de interferencia ACI sin destruir componentes útiles"
         },
         {
             "Tecnica": "2. Ecualización Zero-Forcing (ZF)",
             "Escenario_Canal": "Canal Dispersivo con ISI (h=[1.0, 0.35])",
-            "Configuracion_Tecnica": f"FIR Nw={info_zf['longitud_w']}, Retardo Δ={info_zf['retardo_decision']}, NEF=+0.57 dB",
-            "Desempeño_Sin_Mitigacion": "Piso de error severo (BER > 10% en 16-QAM)",
-            "Desempeño_Con_Mitigacion": "Cancelación de ISI (BER < 1e-4 a 14 dB)",
+            "Configuracion_Tecnica": f"FIR Nw={info_zf['longitud_w']}, Retardo Δ={info_zf['retardo_decision']}, NEF={info_zf['nef_db']:+.2f} dB",
+            "Desempeño_Sin_Mitigacion": f"Piso de error severo (16-QAM BER={ber_16q_isi_sin_14:.4f} a 14 dB)",
+            "Desempeño_Con_Mitigacion": f"Cancelación de ISI (16-QAM BER={ber_16q_isi_zf_14:.2e} a 14 dB)",
             "Beneficio_Demostrado": "Eliminación del piso de error por dispersión multitrayecto"
         },
         {
             "Tecnica": "3. Diversidad de Recepción (MRC L=2)",
             "Escenario_Canal": "Canal Móvil con Desvanecimiento Rayleigh Plano",
             "Configuracion_Tecnica": "SIMO 1x2, Ramas independientes, MRC coherente",
-            "Desempeño_Sin_Mitigacion": "Decaimiento lento orden 1 (BER ≈ 2.2% a 10 dB)",
-            "Desempeño_Con_Mitigacion": "Decaimiento rápido orden 2 (BER ≈ 0.15% a 10 dB)",
-            "Beneficio_Demostrado": "Ganancia de diversidad > 10 dB a BER = 10^-3"
+            "Desempeño_Sin_Mitigacion": f"Decaimiento orden 1 (BPSK SISO BER={ber_bpsk_siso_10:.4f} a 10 dB)",
+            "Desempeño_Con_Mitigacion": f"Decaimiento orden 2 (BPSK MRC BER={ber_bpsk_mrc_10:.4e} a 10 dB)",
+            "Beneficio_Demostrado": "Reducción drástica de errores por desvanecimiento Rayleigh"
         }
     ]
 
