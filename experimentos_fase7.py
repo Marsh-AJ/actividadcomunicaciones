@@ -401,3 +401,4 @@ def ejecutar_experimento_3_diversidad(
         "n_ramas": 2,
         "n_bits": n_bits_ajustado
     }
+
